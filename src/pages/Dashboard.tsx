@@ -1,172 +1,145 @@
-import { useState } from 'react'
-import { TrendingUp, CheckCircle2, Clock, AlertCircle, Activity, Users, Zap, FileText } from 'lucide-react'
-import { MetricCard, Activity as ActivityType } from '../types'
-import { mockMetrics, mockActivities } from '../data/mockData'
+import { useState, useEffect } from 'react'
+import { Activity, CheckCircle2, Clock, Layers, Terminal } from 'lucide-react'
+import { Task } from '../types'
+import { mockTasks, mockAgents } from '../data/mockData'
 import { cn } from '../lib/utils'
 
-const iconMap: Record<string, typeof Activity> = {
-  'trending-up': TrendingUp,
-  'check-circle': CheckCircle2,
-  'clock': Clock,
-  'alert-circle': AlertCircle,
-  'activity': Activity,
-  'users': Users,
-  'zap': Zap,
-  'file-text': FileText,
+const STATUS = {
+  active: { bg: 'bg-emerald-900/20', border: 'border-emerald-500/40', text: 'text-emerald-400' },
+  warning: { bg: 'bg-amber-900/20', border: 'border-amber-500/40', text: 'text-amber-400' },
+  neutral: { bg: 'bg-slate-800/50', border: 'border-slate-600/40', text: 'text-slate-400' },
 }
 
-const colorMap: Record<string, string> = {
-  green: 'text-green-400 border-green-500/30 bg-green-500/10',
-  yellow: 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10',
-  red: 'text-red-400 border-red-500/30 bg-red-500/10',
-  blue: 'text-blue-400 border-blue-500/30 bg-blue-500/10',
-  purple: 'text-purple-400 border-purple-500/30 bg-purple-500/10',
+function PulseDot({ color }: { color: string }) {
+  return (
+    <span className="relative flex">
+      <span className={cn("animate-ping absolute inline-flex h-2 w-2 rounded-full opacity-75", color)} />
+      <span className={cn("relative inline-flex rounded-full h-2 w-2", color)} />
+    </span>
+  )
 }
 
-const changeColorMap: Record<string, string> = {
-  positive: 'text-green-400',
-  negative: 'text-red-400',
-  neutral: 'text-gray-400',
+function StatCard({ value, label, status = 'neutral', active = false }: { value: number, label: string, status?: keyof typeof STATUS, active?: boolean }) {
+  const style = STATUS[status]
+  return (
+    <div className={cn(
+      "rounded-xl border p-4 transition-all cursor-pointer",
+      active ? style.bg : 'bg-slate-900',
+      active ? style.border : 'border-slate-700',
+      "hover:scale-[1.02]"
+    )}>
+      <div className="flex items-center justify-between mb-2">
+        {active && <PulseDot color={style.text.replace('text', 'bg')} />}
+        <span className={cn("text-3xl font-black", active ? style.text : 'text-slate-200')}>{value}</span>
+      </div>
+      <p className="text-xs font-mono text-slate-500 uppercase tracking-wider">{label}</p>
+    </div>
+  )
+}
+
+function TaskRow({ task }: { task: Task }) {
+  const statusMap: Record<string, { text: string; color: string }> = {
+    todo: { text: 'IDLE', color: 'text-slate-500' },
+    inprogress: { text: 'RUN', color: 'text-emerald-400' },
+    review: { text: 'PAUSED', color: 'text-amber-400' },
+    done: { text: 'DONE', color: 'text-emerald-500' },
+  }
+  const { text, color } = statusMap[task.status]
+  const priorityColor = task.priority === 'urgent' ? 'text-rose-400' : task.priority === 'high' ? 'text-amber-400' : 'text-cyan-400'
+
+  return (
+    <div className="flex items-center gap-4 p-3 rounded-lg bg-slate-900/50 border border-slate-800 hover:border-slate-600 transition-colors">
+      <div className={cn("text-[9px] font-mono font-bold min-w-[40px] text-center", color)}>{text}</div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className={cn("text-[10px] font-mono font-bold uppercase", priorityColor)}>{task.priority}</span>
+          <span className="text-slate-600">|</span>
+          <span className="text-[10px] font-mono text-slate-500">{task.assignee}</span>
+        </div>
+        <p className="text-sm font-medium text-slate-200 truncate">{task.title}</p>
+      </div>
+      <span className="text-xs font-mono text-slate-500">{task.dueDate.slice(5)}</span>
+    </div>
+  )
 }
 
 export default function Dashboard() {
-  const [metrics] = useState<MetricCard[]>(mockMetrics)
-  const [activities] = useState<ActivityType[]>(mockActivities)
+  const [time, setTime] = useState(new Date())
+  useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t) }, [])
 
-  const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp)
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const minutes = Math.floor(diff / 60000)
-    const hours = Math.floor(diff / 3600000)
-    
-    if (minutes < 1) return 'ora'
-    if (minutes < 60) return `${minutes}m fa`
-    if (hours < 24) return `${hours}h fa`
-    return `${Math.floor(hours / 24)}g fa`
-  }
+  const activeTasks = mockTasks.filter(t => t.status === 'inprogress')
+  const openTasks = mockTasks.filter(t => t.status === 'todo')
+  const reviewTasks = mockTasks.filter(t => t.status === 'review')
+  const activeAgents = mockAgents.filter(a => a.status === 'active').length
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-200">Dashboard</h1>
-        <p className="text-gray-400">Visione d'insieme sistema agenti</p>
-      </div>
+    <div className="p-6 space-y-6 bg-slate-950 min-h-screen">
+      <header className="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div className="flex items-center gap-3">
+          <Terminal className="w-6 h-6 text-cyan-500" />
+          <div>
+            <h1 className="text-2xl font-black text-slate-100 tracking-tight uppercase">Mission Control</h1>
+            <p className="text-xs font-mono text-slate-500">{time.toLocaleTimeString('it-IT')} UTC | SYSTEM ONLINE</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-900/20 border border-emerald-500/40 rounded-full">
+          <PulseDot color="bg-emerald-500" />
+          <span className="text-xs font-mono font-bold text-emerald-400">{activeAgents} AGENTS ACTIVE</span>
+        </div>
+      </header>
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {metrics.map((metric, idx) => {
-          const Icon = iconMap[metric.icon] || Activity
-          return (
-            <div
-              key={idx}
-              className={cn(
-                'border rounded-lg p-4 transition-all hover:scale-105 cursor-pointer',
-                colorMap[metric.color]
-              )}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <Icon className="w-5 h-5" />
-                <span className={cn('text-sm font-medium', changeColorMap[metric.changeType])}>
-                  {metric.change}
-                </span>
-              </div>
-              <div className="text-2xl font-bold text-gray-200">{metric.value}</div>
-              <div className="text-sm text-gray-400">{metric.title}</div>
-            </div>
-          )
-        })}
+      <div className="grid grid-cols-4 gap-4">
+        <StatCard value={openTasks.length} label="Task Aperti" status="warning" active />
+        <StatCard value={activeTasks.length} label="Task Attivi" status="active" />
+        <StatCard value={reviewTasks.length} label="In Review" status="warning" />
+        <StatCard value={mockTasks.filter(t => t.status === 'done').length} label="Completati" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Activity Feed */}
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+        <section className="bg-slate-900/30 border border-slate-800 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-200 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-blue-400" />
-              Attività Recenti
+            <h2 className="text-lg font-bold text-emerald-400 tracking-tight uppercase flex items-center gap-2">
+              <Activity className="w-5 h-5" />
+              Task Attivi
             </h2>
-            <span className="text-xs text-gray-500">Ultime 24h</span>
+            <span className="text-2xl font-black text-emerald-400">{activeTasks.length.toString().padStart(2, '0')}</span>
           </div>
-          
-          <div className="space-y-3">
-            {activities.map(activity => (
-              <div
-                key={activity.id}
-                className="flex items-start gap-3 p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-colors"
-              >
-                <div className={cn(
-                  'w-2 h-2 rounded-full mt-2',
-                  activity.status === 'active' ? 'bg-green-500' : 'bg-gray-500'
-                )} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-200">
-                    <span className="font-medium text-blue-400">{activity.agent}</span>
-                    {' '}→{' '}
-                    {activity.action}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">{formatTime(activity.timestamp)}</p>
-                </div>
-              </div>
-            ))}
+          <div className="space-y-2">
+            {activeTasks.length > 0 ? activeTasks.map(t => <TaskRow key={t.id} task={t} />) : (
+              <div className="text-center py-8 text-slate-500"><Activity className="w-12 h-12 mx-auto mb-2 opacity-20" /><p>Nessun task attivo</p></div>
+            )}
           </div>
-        </div>
+        </section>
 
-        {/* Quick Stats */}
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+        <section className="bg-slate-900/30 border border-slate-800 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-200 flex items-center gap-2">
-              <Zap className="w-5 h-5 text-yellow-400" />
-              Stato Sistema
+            <h2 className="text-lg font-bold text-amber-400 tracking-tight uppercase flex items-center gap-2">
+              <Layers className="w-5 h-5" />
+              Task Aperti
             </h2>
+            <span className="text-2xl font-black text-amber-400">{openTasks.length.toString().padStart(2, '0')}</span>
           </div>
-          
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-gray-400">Agenti Attivi</span>
-                <span className="text-sm font-medium text-green-400">5/5</span>
-              </div>
-              <div className="w-full bg-gray-800 rounded-full h-2">
-                <div className="bg-green-500 h-2 rounded-full" style={{ width: '100%' }} />
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-gray-400">Task In Corso</span>
-                <span className="text-sm font-medium text-yellow-400">3 attivi</span>
-              </div>
-              <div className="w-full bg-gray-800 rounded-full h-2">
-                <div className="bg-yellow-500 h-2 rounded-full" style={{ width: '60%' }} />
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-gray-400">Heartbeat</span>
-                <span className="text-sm font-medium text-green-400">OK</span>
-              </div>
-              <div className="w-full bg-gray-800 rounded-full h-2">
-                <div className="bg-green-500 h-2 rounded-full" style={{ width: '100%' }} />
-              </div>
-            </div>
+          <div className="space-y-2">
+            {openTasks.length > 0 ? openTasks.map(t => <TaskRow key={t.id} task={t} />) : (
+              <div className="text-center py-8 text-slate-500"><Layers className="w-12 h-12 mx-auto mb-2 opacity-20" /><p>Nessun task aperto</p></div>
+            )}
+          </div>
+        </section>
 
-            <div className="pt-4 border-t border-gray-800">
-              <div className="grid grid-cols-2 gap-4 text-center">
-                <div>
-                  <div className="text-2xl font-bold text-gray-200">8</div>
-                  <div className="text-xs text-gray-500">Nuovi task</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-gray-200">3</div>
-                  <div className="text-xs text-gray-500">Completati oggi</div>
-                </div>
-              </div>
-            </div>
+        <section className="lg:col-span-2 bg-slate-900/30 border border-slate-800 rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-cyan-400 tracking-tight uppercase flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              In Review
+            </h2>
+            <span className="text-2xl font-black text-cyan-400">{reviewTasks.length.toString().padStart(2, '0')}</span>
           </div>
-        </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {reviewTasks.length > 0 ? reviewTasks.map(t => <TaskRow key={t.id} task={t} />) : (
+              <div className="col-span-2 text-center py-8 text-slate-500"><Clock className="w-12 h-12 mx-auto mb-2 opacity-20" /><p>Nessun task in review</p></div>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   )
